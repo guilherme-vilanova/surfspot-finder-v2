@@ -6,6 +6,7 @@ two methods can be dropped into `providers/registry.py` and nothing in
 services/ or ranking/ needs to change.
 """
 
+import time
 from typing import Dict, Optional
 
 import requests
@@ -17,18 +18,43 @@ DEFAULT_HTTP_RETRIES = 3
 DEFAULT_MARINE_TIMEOUT_SECONDS = 12
 DEFAULT_FORECAST_TIMEOUT_SECONDS = 10
 
+# Open-Meteo's free/keyless tier rate-limits by source IP. On shared hosting
+# (e.g. Render's free plan), that IP is shared with other tenants, so bursts
+# of parallel beach lookups can trip a 429 even though *this* app is well
+# under any reasonable per-app budget. Back off and retry instead of failing
+# the whole search immediately.
+RATE_LIMIT_STATUS = 429
+DEFAULT_BACKOFF_SECONDS = 1.0
 
-def safe_get(url, params, timeout=10, retries=DEFAULT_HTTP_RETRIES):
-    """GET with a small retry budget for transient timeouts/network errors."""
+
+def safe_get(url, params, timeout=10, retries=DEFAULT_HTTP_RETRIES, backoff_seconds=DEFAULT_BACKOFF_SECONDS):
+    """GET with a small retry budget for transient timeouts/network/rate-limit errors.
+
+    Retries respect a `Retry-After` header when Open-Meteo sends one on a 429;
+    otherwise they back off with simple exponential delay (backoff_seconds,
+    backoff_seconds*2, backoff_seconds*4, ...) so a burst of parallel requests
+    doesn't hammer the API again immediately.
+    """
     last_error = None
 
-    for _ in range(retries):
+    for attempt in range(retries):
         try:
             response = requests.get(url, params=params, timeout=timeout)
             response.raise_for_status()
             return response
         except requests.Timeout as exc:
             last_error = exc
+        except requests.HTTPError as exc:
+            last_error = exc
+            status = exc.response.status_code if exc.response is not None else None
+            is_last_attempt = attempt == retries - 1
+            if status == RATE_LIMIT_STATUS and not is_last_attempt:
+                retry_after = exc.response.headers.get("Retry-After") if exc.response is not None else None
+                try:
+                    delay = float(retry_after) if retry_after is not None else backoff_seconds * (2**attempt)
+                except ValueError:
+                    delay = backoff_seconds * (2**attempt)
+                time.sleep(delay)
         except requests.RequestException as exc:
             last_error = exc
 
