@@ -82,7 +82,10 @@ Pipeline completo: descoberta -> limite de avaliacao (`MIN_BEACHES_TO_EVALUATE`/
 `MarineDataProvider`, `ForecastProvider`, `GeocodingProvider`, `PlacesProvider` (Protocols) + `ProviderError` (exececao comum).
 
 ### `OpenMeteoMarineProvider` / `OpenMeteoForecastProvider` (`providers/openmeteo.py`)
-Mesma logica de `get_marine_conditions`/`get_forecast_conditions` do `app.py` original, incluindo `safe_get` (retry) e `has_surf_marine_signal`.
+Mesma logica de `get_marine_conditions`/`get_forecast_conditions` do `app.py` original, incluindo `safe_get` (retry, agora com backoff exponencial e respeito a `Retry-After` para 429) e `has_surf_marine_signal`. `OpenMeteoMarineProvider` continua sendo o `MARINE_PROVIDER` padrao.
+
+### `OpenWeatherMapForecastProvider` (`providers/openweathermap.py`)
+`FORECAST_PROVIDER` padrao (env `FORECAST_PROVIDER=openweathermap`, chave em `OPENWEATHER_API_KEY`). Implementa o mesmo `providers.ports.ForecastProvider` que `OpenMeteoForecastProvider`, chamando `https://api.openweathermap.org/data/2.5/weather`. Motivo da troca: o endpoint de forecast da Open-Meteo limita por IP de origem (600/min, 5.000/hora, 10.000/dia), e em hospedagem compartilhada (ex.: Render free tier) esse IP e compartilhado com outros tenants - a app pode ser 429'd por trafego de terceiros. O OpenWeatherMap limita por API key (60/min, 1.000.000/mes), o que resolve o problema na raiz. `_map_condition_code` traduz os codigos de condicao do OWM (2xx/3xx/5xx/6xx/7xx/800/80x) para os codigos estilo WMO que `ranking/presentation.weather_label` ja entende, entao essa funcao nao precisou mudar. Vento vem em m/s da API e e convertido para km/h (`* 3.6`) para bater com as unidades usadas em `ranking/classic.wind_quality_score`.
 
 ### `GoogleGeocodingProvider` / `GooglePlacesProvider` (`providers/google.py`)
 Delegam para `mcp_server.location_service.GoogleLocationService` e traduzem `LocationServiceError` em `ProviderError` na fronteira do adaptador.
@@ -122,6 +125,7 @@ Ferramentas MCP: `get_marine_conditions(lat, lon)`, `get_forecast_conditions(lat
 - `tests/test_services.py`: `BeachDiscoveryService`, `BeachEvaluator`, `SearchOrchestrator`, `LocationResolver` com providers fake;
 - `tests/test_ranking.py`: `ClassicHeuristicRanking`, `ranking.factory`, `ranking.presentation`;
 - `tests/test_providers_openmeteo.py`: `safe_get`, `has_surf_marine_signal`, parsing das respostas Open-Meteo;
+- `tests/test_providers_openweathermap.py`: `_map_condition_code`, parsing/conversao de unidades do OpenWeatherMap, erro quando falta `OPENWEATHER_API_KEY`;
 - `tests/test_validation.py`: `surfweb/validation.py`;
 - `tests/test_location_service.py`: inalterado - `GoogleGeocodingClient`, `GooglePlacesClient`, `GoogleLocationService`.
 

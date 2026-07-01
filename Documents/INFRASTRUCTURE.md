@@ -82,8 +82,9 @@ Responsavel por:
 
 ## Configuracao e segredos
 - `GOOGLE_MAPS_API_KEY`, `GOOGLE_GEOCODING_BASE_URL`, `GOOGLE_PLACES_NEARBY_BASE_URL`, `GOOGLE_PLACES_AUTOCOMPLETE_BASE_URL`: integracao Google;
+- `OPENWEATHER_API_KEY`: integracao OpenWeatherMap, necessaria quando `FORECAST_PROVIDER=openweathermap` (padrao);
 - `SECRET_KEY`, `FLASK_ENV`, `FLASK_DEBUG`: config do Flask;
-- `MARINE_PROVIDER`, `FORECAST_PROVIDER`, `GEOCODING_PROVIDER`, `PLACES_PROVIDER`: qual adaptador usar em cada capacidade (ver `providers/registry.py`);
+- `MARINE_PROVIDER`, `FORECAST_PROVIDER`, `GEOCODING_PROVIDER`, `PLACES_PROVIDER`: qual adaptador usar em cada capacidade (ver `providers/registry.py`). `FORECAST_PROVIDER` e `openweathermap` por padrao (nao `open_meteo`) porque o limite de taxa da Open-Meteo e por IP compartilhado, o que causa 429 em hospedagem gratuita compartilhada;
 - `RANKING_STRATEGY`: qual algoritmo de pontuacao usar (ver `ranking/factory.py`);
 - `CACHE_PATH`, `CACHE_TTL_SECONDS`: cache persistente;
 - `RATELIMIT_STORAGE_URI`, `RATELIMIT_DEFAULT`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_AUTOCOMPLETE`: rate limiting.
