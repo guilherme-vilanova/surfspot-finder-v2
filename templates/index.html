@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SurfSpot Finder</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+
+<body>
+<div class="loading-screen" id="loading-screen" aria-hidden="true">
+  <div class="loading-card" role="status" aria-live="polite">
+    <div class="loading-spinner" aria-hidden="true"></div>
+    <h2 class="loading-title">Loading Forecast</h2>
+    <p class="loading-copy" id="loading-message">Finding nearby beaches and checking waves, wind and weather.</p>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">S</div>
+      <div class="brand-copy">
+        <strong>SurfSpot Finder</strong>
+        <span>Forecast-driven discovery</span>
+      </div>
+    </div>
+    <nav class="nav-links">
+      <a href="#search">Search</a>
+      <a href="#top-result">Top spot</a>
+      <a href="#rankings">Rankings</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell page">
+  <section class="hero">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1>Find your next<br>best session</h1>
+        <p>
+          Search by city, beach, or address, or use your current location to discover nearby
+          surf spots ranked by waves, wind, and weather.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="layout">
+    {% if error_message %}
+    <div class="banner error">{{ error_message }}</div>
+    {% endif %}
+    {% if info_message %}
+    <div class="banner info">{{ info_message }}</div>
+    {% endif %}
+
+    <section class="panel search-panel" id="search">
+      <h2 class="section-title">Search Nearby Beaches</h2>
+      <p class="section-copy">
+        Choose your location, search radius and surfer level to discover beaches around you and rank the best conditions available now.
+      </p>
+
+      <form method="POST" id="search-form">
+        <div class="field location">
+          <label for="location-query">Location</label>
+          <input
+            id="location-query"
+            type="text"
+            name="location_query"
+            value="{{ location_query }}"
+            placeholder="Type a city, neighborhood or address"
+            autocomplete="off"
+            aria-autocomplete="list"
+            aria-expanded="false"
+            aria-controls="location-autocomplete"
+          >
+          <div class="autocomplete-panel" id="location-autocomplete" role="listbox"></div>
+          <span class="field-hint">Examples: Porto Alegre, Tramandai, Joaquina, Rua das Gaivotas 15. Type "Laguna" to see the full suggestion and select it.</span>
+        </div>
+
+        <input type="hidden" id="origin-lat" name="origin_lat" value="{{ origin_lat }}">
+        <input type="hidden" id="origin-lon" name="origin_lon" value="{{ origin_lon }}">
+        <input type="hidden" id="origin-source" name="origin_source" value="{{ origin_source }}">
+        <input type="hidden" id="resolved-location-label" name="resolved_location_label" value="{{ resolved_location_label }}">
+
+        <div class="field">
+          <label for="max-distance">Max Radius</label>
+          <select id="max-distance" name="max_distance_km">
+            <option value="30" {% if max_distance_km == 30 %}selected{% endif %}>30 km</option>
+            <option value="50" {% if max_distance_km == 50 %}selected{% endif %}>50 km</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="result-limit">Results</label>
+          <select id="result-limit" name="result_limit">
+            <option value="5" {% if result_limit == 5 %}selected{% endif %}>Top 5</option>
+            <option value="10" {% if result_limit == 10 %}selected{% endif %}>Top 10</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <div class="label-row field-help">
+            <label for="skill-level">Surfer Level</label>
+            <button type="button" class="info-button" id="skill-level-info-btn" aria-label="About surfer levels" aria-expanded="false">i</button>
+            <div class="help-popover" id="skill-level-help" role="dialog" aria-label="Surfer level help">
+              <strong>How this affects ranking</strong>
+              <p><strong>Beginner</strong> favors smaller, friendlier waves. <strong>Advanced</strong> favors stronger surf and more powerful wave ranges. Wind, waves, and final score are weighted using this selection.</p>
+            </div>
+          </div>
+          <select id="skill-level" name="skill_level">
+            <option value="beginner" {% if skill_level == "beginner" %}selected{% endif %}>Beginner</option>
+            <option value="advanced" {% if skill_level == "advanced" %}selected{% endif %}>Advanced</option>
+          </select>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="primary-btn">Find Beaches</button>
+          <button type="button" class="secondary-btn" id="use-my-location-btn">Use My Location</button>
+          <span class="status-text" id="location-status"></span>
+          <div class="unit-toggle" aria-label="Units">
+            <span class="unit-toggle-label">Units</span>
+            <div class="unit-toggle-controls">
+              <button type="button" class="unit-btn active" id="metric-units-btn" data-unit-system="metric">Metric / Universal</button>
+              <button type="button" class="unit-btn" id="us-units-btn" data-unit-system="us">American</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    {% if has_searched and origin %}
+    <div class="summary">
+      <span>Selected location: <strong>{{ origin.name }}</strong></span>
+      <span class="source-pill {% if origin.source == 'browser' %}browser{% endif %}">{{ origin.source }}</span>
+      <span class="meta-pill">Radius <span class="unit-value" data-kind="distance" data-value="{{ max_distance_km }}">{{ max_distance_km }} km</span></span>
+      <span class="meta-pill">Profile {{ skill_level }}</span>
+      <span class="meta-pill">Top {{ result_limit }}</span>
+    </div>
+    {% endif %}
+
+    {% if not has_searched %}
+    <div class="empty-state">
+      <h3>Start Your Surf Search</h3>
+      <p>Type a location or click <strong>Use My Location</strong>, choose your radius and surfer level, then discover and compare the best beaches around that area.</p>
+    </div>
+    {% elif beaches and beaches|length > 0 %}
+    <section class="results-grid" id="top-result">
+      <article class="top-card">
+        <div class="top-label">
+          {% if skill_level == "beginner" %}
+            Best beginner-friendly spot right now
+          {% else %}
+            Best advanced surf option right now
+          {% endif %}
+        </div>
+
+        <div class="top-main">
+          <div class="top-left">
+            <div class="top-headline">
+              <h2 class="top-beach">{{ beaches[0].name }}</h2>
+              <span class="pill {{ beaches[0].condition_color }}">{{ beaches[0].condition_label }}</span>
+            </div>
+          </div>
+
+          <div class="top-score">
+            <div class="top-score-stars" aria-hidden="true">
+              {% set top_star_count = ((beaches[0].score / 14) * 5)|round(0, 'ceil')|int if beaches[0].score > 0 else 0 %}
+              {% for _ in range(top_star_count) %}
+              <span class="top-score-star filled">&#9733;</span>
+              {% endfor %}
+              {% for _ in range(5 - top_star_count) %}
+              <span class="top-score-star">&#9733;</span>
+              {% endfor %}
+            </div>
+            <div class="top-score-label">Surf Score</div>
+          </div>
+        </div>
+
+        <div class="top-detail-grid">
+        <div class="mini-card">
+          <h3 class="card-title">Waves</h3>
+          <div class="stat-grid">
+              <div class="stat">
+                <span class="stat-label">Height</span>
+                <span class="stat-value">{% if beaches[0].wave_height is not none %}<span class="unit-value" data-kind="wave" data-value="{{ beaches[0].wave_height }}">{{ beaches[0].wave_height }} m</span>{% else %}N/A{% endif %}</span>
+              </div>
+            <div class="stat">
+              <span class="stat-label">Period</span>
+              <span class="stat-value">{% if beaches[0].wave_period is not none %}{{ beaches[0].wave_period }} s{% else %}N/A{% endif %}</span>
+            </div>
+              <div class="stat">
+                <span class="stat-label">Swell Dir</span>
+                <span class="stat-value direction-value">
+                  <span class="direction-arrow" data-rotate-deg="{{ ((beaches[0].wave_direction + 180) % 360) if beaches[0].wave_direction is not none else 0 }}">&#8593;</span>
+                  <span>{{ beaches[0].wave_direction_visual }}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mini-card">
+            <h3 class="card-title">Weather</h3>
+            <div class="reading-stack">
+              {% set weather_text = beaches[0].weather_label|lower %}
+              {% set weather_icon_class = 'sunny' if 'clear' in weather_text or 'sun' in weather_text else 'rainy' if 'rain' in weather_text or 'drizzle' in weather_text or 'shower' in weather_text or 'storm' in weather_text else 'cloudy' %}
+              <div class="reading-weather">
+                <span class="weather-icon {{ weather_icon_class }}" aria-hidden="true"></span>
+                <div class="reading-weather-copy">
+                  <span class="reading-weather-label">{{ beaches[0].weather_label }}</span>
+                  <span class="reading-weather-meta">Current conditions</span>
+                </div>
+              </div>
+              <div class="weather-metrics">
+                <div class="weather-metric">
+                  <span class="weather-metric-label">Temperature</span>
+                  <span class="weather-metric-value">
+                    {% if beaches[0].temperature_c is not none %}<span class="unit-value" data-kind="temperature" data-value="{{ beaches[0].temperature_c }}">{{ beaches[0].temperature_c }} °C</span>{% else %}N/A{% endif %}
+                  </span>
+                </div>
+                <div class="weather-metric">
+                  <span class="weather-metric-label">Wind</span>
+                  <span class="weather-metric-value">
+                    {% if beaches[0].wind_speed is not none %}<span class="unit-value" data-kind="wind" data-value="{{ beaches[0].wind_speed }}">{{ beaches[0].wind_speed }} km/h</span>{% else %}N/A{% endif %}
+                  </span>
+                </div>
+                <div class="weather-metric">
+                  <span class="weather-metric-label">Wind Dir</span>
+                  <span class="weather-metric-value direction-value">
+                    <span class="direction-arrow" data-rotate-deg="{{ ((beaches[0].wind_direction + 180) % 360) if beaches[0].wind_direction is not none else 0 }}">&#8593;</span>
+                    <span>{{ beaches[0].wind_direction_visual }}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <aside class="map-card">
+        <h3 class="card-title">Beach Location</h3>
+        <div class="map-frame">
+          <iframe
+            title="Map for {{ beaches[0].name }}"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            src="{{ winner_map_embed_url }}">
+          </iframe>
+          <a
+            class="map-link-btn"
+            href="{{ winner_google_maps_url }}"
+            target="_blank"
+            rel="noopener noreferrer">
+            Open in Google Maps
+          </a>
+        </div>
+        <p class="map-caption">
+          Zoomed out to show where <strong>{{ beaches[0].name }}</strong> sits along the coast.
+        </p>
+      </aside>
+    </section>
+
+    <section class="panel table-card" id="rankings">
+      <div class="table-head">
+        <div>
+          <h3>Ranked Beaches</h3>
+          <p>Sorted by overall surf score, then wave score, swell fit, wind score and distance.</p>
+          <div class="score-guide">
+            <span class="score-guide-item"><span class="score-guide-stars">&#9733;</span> Difficult</span>
+            <span class="score-guide-item"><span class="score-guide-stars">&#9733;&#9733;</span> Limited</span>
+            <span class="score-guide-item"><span class="score-guide-stars">&#9733;&#9733;&#9733;</span> Surfable</span>
+            <span class="score-guide-item"><span class="score-guide-stars">&#9733;&#9733;&#9733;&#9733;</span> Good Window</span>
+            <span class="score-guide-item"><span class="score-guide-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span> Worth It</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Beach</th>
+              <th>Distance</th>
+              <th>Wave</th>
+              <th>Wind</th>
+              <th>Weather</th>
+              <th>Score</th>
+              <th>Quality</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for beach in beaches %}
+            <tr>
+              <td>
+                <span class="rank-badge">#{{ loop.index }}</span>
+                <span class="result-name">{{ beach.name }}</span>
+                <span class="small">{{ beach.region }}</span>
+              </td>
+
+              <td><span class="unit-value" data-kind="distance" data-value="{{ beach.distance_km }}">{{ beach.distance_km }} km</span></td>
+
+              <td>
+                <span class="metric-line">
+                  <span class="metric-line-label">Height:</span>
+                  {% if beach.wave_height is not none %}<span class="unit-value" data-kind="wave" data-value="{{ beach.wave_height }}">{{ beach.wave_height }} m</span>{% else %}N/A{% endif %}
+                </span>
+                <span class="metric-line">
+                  <span class="metric-line-label">Period:</span>
+                  {% if beach.wave_period is not none %}{{ beach.wave_period }} s{% else %}N/A{% endif %}
+                </span>
+                <span class="metric-line">
+                  <span class="metric-line-label">Direction:</span>
+                  <span class="small">{{ beach.wave_direction_visual }}</span>
+                </span>
+              </td>
+
+              <td>
+                {% if beach.wind_speed is not none %}<span class="unit-value" data-kind="wind" data-value="{{ beach.wind_speed }}">{{ beach.wind_speed }} km/h</span>{% else %}N/A{% endif %}<br>
+                <span class="small">{{ beach.wind_direction_visual }}</span>
+              </td>
+
+              <td>
+                {{ beach.weather_label }}<br>
+                <span class="small">{% if beach.temperature_c is not none %}<span class="unit-value" data-kind="temperature" data-value="{{ beach.temperature_c }}">{{ beach.temperature_c }} °C</span>{% else %}N/A{% endif %}</span>
+              </td>
+
+              <td>
+                <span class="score-tooltip">
+                  <div class="score-inline">
+                    <div class="score-stars" aria-hidden="true">
+                      {% set star_count = ((beach.score / 14) * 5)|round(0, 'ceil')|int if beach.score > 0 else 0 %}
+                      {% for _ in range(star_count) %}
+                      <span class="score-star filled">&#9733;</span>
+                      {% endfor %}
+                      {% for _ in range(5 - star_count) %}
+                      <span class="score-star">&#9733;</span>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  <span class="tooltip-box">
+                    Wave Score: {{ beach.wave_score }}<br>
+                    Swell Score: {{ beach.swell_score }}<br>
+                    Wind Score: {{ beach.wind_score }}
+                  </span>
+                </span>
+              </td>
+
+              <td>
+                <span class="pill {{ beach.condition_color }}">
+                  {{ beach.condition_label }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% elif has_searched %}
+    <div class="empty-state">
+      <h3>No Beaches Found</h3>
+      <p>Try the 50 km radius or search from another location.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
