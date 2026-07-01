@@ -46,7 +46,11 @@ class Config:
     # Which provider implementation backs each capability. Swapping an API
     # later means adding an adapter in providers/ and changing one of these.
     MARINE_PROVIDER = os.environ.get("MARINE_PROVIDER", "open_meteo").strip()
-    FORECAST_PROVIDER = os.environ.get("FORECAST_PROVIDER", "open_meteo").strip()
+    # Open-Meteo's forecast endpoint rate-limits by shared source IP, which
+    # bites hard on shared hosting; OpenWeatherMap's free tier is keyed by
+    # API key instead, so it's the default here. Set OPENWEATHER_API_KEY to
+    # use it, or set FORECAST_PROVIDER=open_meteo to fall back to Open-Meteo.
+    FORECAST_PROVIDER = os.environ.get("FORECAST_PROVIDER", "openweathermap").strip()
     GEOCODING_PROVIDER = os.environ.get("GEOCODING_PROVIDER", "google").strip()
     PLACES_PROVIDER = os.environ.get("PLACES_PROVIDER", "google").strip()
 
