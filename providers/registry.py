@@ -14,6 +14,7 @@ from typing import Callable, Dict
 
 from .google import GoogleGeocodingProvider, GooglePlacesProvider
 from .openmeteo import OpenMeteoForecastProvider, OpenMeteoMarineProvider
+from .openweathermap import OpenWeatherMapForecastProvider
 from .ports import ForecastProvider, GeocodingProvider, MarineDataProvider, PlacesProvider
 
 
@@ -31,6 +32,7 @@ MARINE_PROVIDERS: Dict[str, Callable[[], MarineDataProvider]] = {
 
 FORECAST_PROVIDERS: Dict[str, Callable[[], ForecastProvider]] = {
     "open_meteo": OpenMeteoForecastProvider,
+    "openweathermap": OpenWeatherMapForecastProvider,
 }
 
 GEOCODING_PROVIDERS: Dict[str, Callable[[], GeocodingProvider]] = {
